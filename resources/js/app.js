@@ -1,4 +1,5 @@
-import './bootstrap';
+import './bootstrap'
+import './document-editor'
 
 import Alpine from 'alpinejs';
 
