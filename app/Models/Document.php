@@ -22,4 +22,9 @@ class Document extends Model
     {
         return $this->hasMany(DocumentRevision::class);
     }
+
+    public function editLogs(): HasMany
+    {
+        return $this->hasMany(DocumentEditLog::class);
+    }
 }
