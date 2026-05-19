@@ -12,22 +12,21 @@ const saveBtn = document.querySelector('#saveBtn')
 const documentId = editorEl?.dataset?.documentId
 const csrf = document.querySelector('meta[name="csrf-token"]')?.content || ''
 const documentTitleEl = document.querySelector('#documentTitleText')
+const typingIndicatorEl = document.querySelector('#typingIndicator')
+const onlineUsersEl = document.querySelector('#onlineUsers')
 const editorName = window.authUserName || 'Anonymous'
 
 function stringToColor(str) {
   let hash = 0
-
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash)
   }
 
   let color = '#'
-
   for (let i = 0; i < 3; i++) {
     const value = (hash >> (i * 8)) & 255
     color += (`00${value.toString(16)}`).slice(-2)
   }
-
   return color
 }
 
@@ -38,6 +37,11 @@ if (editorEl && documentId) {
     url: 'ws://127.0.0.1:1234',
     name: `document-${documentId}`,
     document: ydoc,
+  })
+
+  provider.awareness.setLocalStateField('user', {
+    name: editorName,
+    color: stringToColor(editorName),
   })
 
   const editor = new Editor({
@@ -57,6 +61,40 @@ if (editorEl && documentId) {
     ],
     content: window.initialDocumentContent || '<p></p>',
   })
+
+  const renderOnlineUsers = () => {
+    if (!onlineUsersEl) return
+
+    const states = Array.from(provider.awareness.getStates().values())
+    const users = states
+      .map((state) => state?.user)
+      .filter((user) => user?.name)
+
+    const unique = []
+    const seen = new Set()
+
+    for (const user of users) {
+      if (seen.has(user.name)) continue
+      seen.add(user.name)
+      unique.push(user)
+    }
+
+    onlineUsersEl.innerHTML = unique.map((user) => {
+      const color = user.color || '#2563eb'
+      const name = user.name || 'Anonymous'
+      const initial = name.charAt(0).toUpperCase()
+
+      return `
+        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border bg-slate-50 text-sm text-slate-700">
+          <span class="w-2.5 h-2.5 rounded-full" style="background:${color}"></span>
+          <span class="flex h-6 w-6 items-center justify-center rounded-full text-white text-xs font-bold" style="background:${color}">
+            ${initial}
+          </span>
+          <span>${name}</span>
+        </span>
+      `
+    }).join('')
+  }
 
   document.querySelectorAll('.toolbar-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -78,9 +116,7 @@ if (editorEl && documentId) {
     btn.addEventListener('click', () => {
       const revisionTitle = btn.dataset.title || 'Untitled Document'
       const encodedContent = btn.dataset.content || ''
-      const revisionContent = encodedContent
-        ? atob(encodedContent)
-        : '<p></p>'
+      const revisionContent = encodedContent ? atob(encodedContent) : '<p></p>'
 
       if (documentTitleEl) {
         documentTitleEl.textContent = revisionTitle
@@ -89,6 +125,12 @@ if (editorEl && documentId) {
       editor.commands.setContent(revisionContent, false)
     })
   })
+
+  provider.awareness.on('change', () => {
+    renderOnlineUsers()
+  })
+
+  renderOnlineUsers()
 
   saveBtn?.addEventListener('click', async () => {
     const currentContent = editor.getHTML()
